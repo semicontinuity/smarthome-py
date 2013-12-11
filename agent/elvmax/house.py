@@ -12,8 +12,11 @@ class House(object):
 
     def on_message(self, message):
         print message
-        message_object = messages.response_types[chr(message[0])](str(message[2:]))
-        self.handlers[message_object.__class__](self, message_object)
+        if messages.response_types.has_key(chr(message[0])):
+            message_object = messages.response_types[chr(message[0])](str(message[2:]))
+            self.handlers[message_object.__class__](self, message_object)
+        else:
+            print "No handler for message: " + chr(message[0])
 
     def handle_metadata_message(self, message):
         for device_metadata in message.devices_metadata:
@@ -43,7 +46,11 @@ class House(object):
         if self.rf_address_to_device.has_key(message.rf_address):
             device = self.rf_address_to_device[message.rf_address]
             device.config = message.config
-            print device
+
+    def __repr__(self):
+        return 'House[' \
+               + repr(self.rf_address_to_device) + ',' \
+               + repr(self.room_id_to_room) + ']'
 
     handlers = {
         messages.H_Message: lambda self, x: x,

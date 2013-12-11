@@ -1,3 +1,6 @@
+import messages
+import datetime
+
 class DeviceMetadata(object):
     def __init__(self, device_type, rf_address, serial, name, room_id):
         self.device_type = device_type
@@ -53,6 +56,10 @@ class Device(object):
                + '\t\tgateway known:        ' + str(self.is_gateway_known()) + '\n' \
                + '\t\tdst active:           ' + str(self.is_dst_active()) + '\n' \
                + '\t\tmode:                 ' + str(Device.Mode.value_repr(self.mode())) + '\n' \
+               + '\t\tvalve position:       ' + str(self.valve_position()) + '\n' \
+               + '\t\ttemperature:          ' + str(self.temperature()) + '\n' \
+               + '\t\ttarget_temperature:   ' + str(self.target_temperature()) + '\n' \
+               + '\t\tuntil:                ' + str(self.until()) + '\n' \
                + '\tconfig:\n' \
                + '\t\tcomfort temp:         ' + str(self.comfort_temperature()) + '\n' \
                + '\t\teco temp:             ' + str(self.eco_temperature()) + '\n' \
@@ -69,6 +76,17 @@ class Device(object):
                + '\t\tvalve offset:         ' + str(self.valve_offset()) + '\n' \
                + '\t\tschedule:\n' + self.schedule_repr() \
                + ']'
+
+    # State
+    #
+    # 0     1   message length
+    # 1     3   radio address
+    # 4  0  1   unknown
+    # 5  1  2   bits
+    # 7  3  1   valve position
+    # 8  4  1   unknown
+    # 9  5  2   temperature
+
 
     def is_valid(self):
         return self.state and bool(ord(self.state[1]) & 0x10)
@@ -98,7 +116,37 @@ class Device(object):
         return self.state and bool(ord(self.state[2]) & 0x08)
 
     def mode(self):
-        return self.state and bool(ord(self.state[2]) & 0x03)
+        return ord(self.state[2]) & 0x03 if self.is_valid() else None
+
+    def valve_position(self):
+        return ord(self.state[3]) if self.is_valid() else None
+
+    def target_temperature(self):
+        return self.decode_temperature(ord(self.state[4])) if self.is_valid() else None
+
+    def temperature(self):
+        return float((ord(self.state[5]) << 8) | ord(self.state[6]))/10.0
+
+    def until(self):
+        if self.is_valid() and False: # investigate, bad data from device
+            b1 = ord(self.state[5])
+            b2 = ord(self.state[6])
+            b3 = ord(self.state[7])
+            if b1 == 0 and b2 == 0 and b3 == 0:
+                return None
+            print hex(b1),hex(b2),hex(b3)
+            month = ((b1 & 0xE0) << 1) + (b2 & 0x80)
+            print month
+            return datetime.datetime(
+                (b2 & 0x7F) + 2000,
+                month + 1,
+                (b1 & 0x1F),
+                b3 / 2,
+                b3 % 1)
+        else:
+            return None
+
+    # Config
 
     def comfort_temperature(self):
         return self.config and self.decode_temperature(ord(self.config[0x12]))
@@ -150,13 +198,25 @@ class Device(object):
         return self.config and (self.decode_temperature(ord(self.config[0x1D + 2*t]) >> 1), (((ord(self.config[0x1D + 2*t]) & 0x01) << 8) | ord(self.config[0x1E + 2*t]))*5)
 
     def decode_temperature(self, value):
-        return value / 2
+        return value / 2.0
 
 
 class HeatingThermostat(Device):
     def __repr__(self):
         return 'HeatingThermostat:' + super(HeatingThermostat, self).__repr__()
 
+    def command_set_temperature(self, mode_value, temperature=None, year=None, month=None, day=None, half_our_units=None):
+        """ mode: 0=Auto, 1=Permanent(tested: Manual), 2=Temporarily(tested: Vacation?), 3=Boost """
+        messages.command_set_temperature(
+            self.metadata.rf_address,
+            self.metadata.room_id,
+            mode_value,
+            temperature,
+            year,
+            month,
+            day,
+            half_our_units
+        )
 
 class HeatingThermostatPlus(Device):
     def __repr__(self):

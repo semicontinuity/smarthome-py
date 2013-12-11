@@ -117,6 +117,7 @@ class L_Message(Message):
         }   # map {string rf_address: bytes device_state}
 
     def tokenize(self, data):
+        """ data format: [length1:1][token1:length1][length2:1][token2:length2]... """
         i = 0
         tokens = []
         len1 = len(data)
@@ -131,9 +132,80 @@ class L_Message(Message):
         return 'Data:' + str(self.contents) + '\n'
 
 
+# INCOMING_HELLO = "H:"
+# INCOMING_FAILURE = "F:"
+# INCOMING_DEVICE_LIST = "L:"
+# INCOMING_CONFIGURATION = "C:"
+# INCOMING_METADATA = "M:"
+# INCOMING_NEW_DEVICE = "N:"
+# INCOMING_ACKNOWLEDGE = "A:"
+# INCOMING_ENCRYPTION = "E:"
+# INCOMING_DECRYPTION = "D:"
+# INCOMING_SET_CREDENTIALS = "b:"
+# INCOMING_GET_CREDENTIALS = "g:"
+# INCOMING_SET_REMOTE_ACCESS = "j:"
+# INCOMING_SET_USER_DATA = "p:"
+# INCOMING_GET_USER_DATA = "o:"
+# INCOMING_SEND_DEVICE_CMD = "S:"
+
 response_types = {
     'H': H_Message,
     'M': M_Message,
     'L': L_Message,
     'C': C_Message
 }
+
+
+class request_types:
+    RESET = 'a'
+    GET_CONFIGURATION = 'c'
+    GET_DEVICE_LIST = 'l'
+    URL = 'u'
+    INTERVAL = 'i'
+    METADATA = 'm'
+    INCLUSION_MODE = 'n'
+    CANCEL_INCLUSION_MODE = 'x'
+    MORE_DATA = 'g'
+    QUIT = 'q'
+    ENCRYPTION = 'e'
+    DECRYPTION = 'd'
+    SET_CREDENTIALS = 'B'
+    GET_CREDENTIALS = 'G'
+    SET_REMOTE_ACCESS = 'J'
+    SET_USER_DATA = 'P'
+    GET_USER_DATA = 'O'
+    SEND_DEVICE_CMD = 's'
+    RESET_ERROR = 'r'
+    DELETE_DEVICES = 't'
+    SET_PUSHBUTTON_CONFIG = 'w'
+    SET_URL = 'u'
+    TIME_CONFIG = 'v'
+    SEND_WAKEUP = 'z'
+
+
+def command_set_temperature(rf_address, room_number, mode_value, temperature=None , year=None, month=None, day=None, half_our_units=None):
+    """
+    mode: 0=Auto, 1=Permanent, 2=Temporarily
+    date and time until: zeroes, year 2000 => no end time
+    tested with mode 0 (Auto), 1 (Permanent)
+    """
+    data = bytearray(14-3)
+    data[0] = 0x00
+    data[1] = 0x04
+    data[2] = 0x40
+    data[3] = 0x00
+    data[4] = 0x00
+    data[5] = 0x00
+    data[6] = int(rf_address[0:2], 16)
+    data[7] = int(rf_address[2:4], 16)
+    data[8] = int(rf_address[4:6], 16)
+    data[9] = int(room_number)
+    data[10] = int(temperature * 2.0) | (mode_value << 6) if mode_value==1 else 0
+
+    # data[11] = ((month >> 1) << 5) | day
+    # data[12] = ((month & 1) << 7) | (year - 2000)
+    # data[13] = half_our_units
+    return command(request_types.SEND_DEVICE_CMD, base64.b64encode(str(data)))
+
+def command(request_type, payload=''):
+    return request_type + ':' + payload

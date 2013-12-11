@@ -8,7 +8,7 @@ class Search:
     ALL = '255.255.255.255'
     MCAST_ADDR = '224.0.0.1'
     MCAST_PORT = 23272
-    RECEIVE_TIMEOUT = 5
+    RECEIVE_TIMEOUT = 2
 
     @staticmethod
     def list_cubes():
@@ -33,11 +33,11 @@ class Search:
     def send_hello(self):
         data = 'eQ3Max*\x00**********I'
         self.send(data, self.MCAST_ADDR)
-        self.send(data, self.ALL)
+        # self.send(data, self.ALL)
 
 
     def send(self, data, addr):
-        for i in range(0, 5):
+        for i in range(0, 10):
             self._socket.sendto(data, (addr, self.MCAST_PORT))
             time.sleep(0.1)
 
@@ -60,8 +60,8 @@ class Search:
         try:
             data, addr = self._socket.recvfrom(128)
             if data[0:8] == 'eQ3MaxAp':
-                firmware = (data[24] << 8) | data[25]
-                return data[8:18], addr, 62910 if firmware > 270 else 80, firmware
+                firmware = (ord(data[24]) << 8) | ord(data[25])
+                return data[8:18], addr[0], 62910 if firmware > 270 else 80, firmware
         except socket.error:
             pass
         return None
@@ -97,4 +97,4 @@ class Connection(threading.Thread):
             self.on_message(message[:len(message) - 2])
 
     def write_message(self, message):
-        self.s.sendall(message)
+        self.s.sendall(message + '\r\n')
