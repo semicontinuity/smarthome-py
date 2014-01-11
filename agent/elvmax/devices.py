@@ -115,6 +115,7 @@ class Device(object):
     def is_dst_active(self):
         return self.state and bool(ord(self.state[2]) & 0x08)
 
+    # 0: Auto, 1: Manual, 2: Vacation, 3: Boost
     def mode(self):
         return ord(self.state[2]) & 0x03 if self.is_valid() else None
 
@@ -125,26 +126,39 @@ class Device(object):
         return self.decode_temperature(ord(self.state[4])) if self.is_valid() else None
 
     def temperature(self):
-        return float((ord(self.state[5]) << 8) | ord(self.state[6]))/10.0
+        if self.until():
+            return None
+        else:
+            return float((ord(self.state[5]) << 8) | ord(self.state[6]))/10.0
 
     def until(self):
-        if self.is_valid() and False: # investigate, bad data from device
+        if self.is_valid():
             b1 = ord(self.state[5])
             b2 = ord(self.state[6])
             b3 = ord(self.state[7])
-            if b1 == 0 and b2 == 0 and b3 == 0:
+            year_delta = b2 & 0x7F
+            month = ((b1 & 0xE0) << 1) + ((b2 & 0x80) >> 7)
+            day = b1 & 0x1F
+            if year_delta > 0 and month > 0 and day > 0:
+                return datetime.datetime(
+                    year_delta + 2000,
+                    month,
+                    day,
+                    b3 / 2,
+                    (b3 % 1) * 30
+                )
+            else:
                 return None
-            print hex(b1),hex(b2),hex(b3)
-            month = ((b1 & 0xE0) << 1) + (b2 & 0x80)
-            print month
-            return datetime.datetime(
-                (b2 & 0x7F) + 2000,
-                month + 1,
-                (b1 & 0x1F),
-                b3 / 2,
-                b3 % 1)
+
         else:
             return None
+
+    def until_raw(self):
+        b1 = ord(self.state[5])
+        b2 = ord(self.state[6])
+        b3 = ord(self.state[7])
+
+        return '%02x%02x%02x' % (b1, b2, b3)
 
     # Config
 

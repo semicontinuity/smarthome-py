@@ -40,6 +40,7 @@ class House(object):
             if self.rf_address_to_device.has_key(device_rf_address):
                 device = self.rf_address_to_device[device_rf_address]
                 device.state = device_state
+                print device_rf_address + ": " + device.until_raw() + ": " + str(device.until())
 
     def handle_config_message(self, message):
         # find device with given rf_address and update config with data from message

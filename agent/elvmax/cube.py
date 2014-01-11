@@ -74,26 +74,51 @@ class Connection(threading.Thread):
         self.host = None
         self.port = None
         self.on_message = None
+        self.event = None
 
     def start(self):
+        print 'Opening connection to cube at ' + self.host + ":" + str(self.port)
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.s.settimeout(1.0)
         self.s.connect(((socket.gethostbyname(self.host)), self.port))
+        self.event = threading.Event()
         super(Connection, self).start()
 
     def stop(self):
-        self.s.close()  # will terminate recv()
+        print 'Closing connection to cube'
+        self.event.set()
 
-    def run(self):
+    def run1(self):
         while True:
             message = bytearray()
             while True:
                 char = self.s.recv(1)
-                if char == '':
+                if not char:
                     return
                 message.extend(char)
                 if char == '\n':
                     break
 
+            self.on_message(message[:len(message) - 2])
+        print 'Stopped reading data from cube'
+
+    def run(self):
+        print 'Starting cube receiver thread'
+        while True:
+            message = bytearray()
+            while True:
+                try:
+                    if self.event.is_set():
+                        self.s.shutdown(socket.SHUT_RDWR)
+                        self.s.close()  # will terminate recv() and thread will stop
+                        print 'Closed connection to cube'
+                        return
+                    char = self.s.recv(1)
+                    message.extend(char)
+                    if char == '\n':
+                        break
+                except socket.timeout:
+                    time.sleep(0.1)
             self.on_message(message[:len(message) - 2])
 
     def write_message(self, message):

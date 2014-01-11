@@ -158,6 +158,7 @@ response_types = {
 
 class request_types:
     RESET = 'a'
+    NTP_SERVER = 'f'
     GET_CONFIGURATION = 'c'
     GET_DEVICE_LIST = 'l'
     URL = 'u'
@@ -174,6 +175,7 @@ class request_types:
     SET_REMOTE_ACCESS = 'J'
     SET_USER_DATA = 'P'
     GET_USER_DATA = 'O'
+    ACTIVATE_PRODUCT = 'W'
     SEND_DEVICE_CMD = 's'
     RESET_ERROR = 'r'
     DELETE_DEVICES = 't'
@@ -189,7 +191,8 @@ def command_set_temperature(rf_address, room_number, mode_value, temperature=Non
     date and time until: zeroes, year 2000 => no end time
     tested with mode 0 (Auto), 1 (Permanent)
     """
-    data = bytearray(14-3)
+    has_time = year and month and day and half_our_units
+    data = bytearray(14 if has_time else 11)
     data[0] = 0x00
     data[1] = 0x04
     data[2] = 0x40
@@ -200,11 +203,12 @@ def command_set_temperature(rf_address, room_number, mode_value, temperature=Non
     data[7] = int(rf_address[2:4], 16)
     data[8] = int(rf_address[4:6], 16)
     data[9] = int(room_number)
-    data[10] = int(temperature * 2.0) | (mode_value << 6) if mode_value==1 else 0
-
-    # data[11] = ((month >> 1) << 5) | day
-    # data[12] = ((month & 1) << 7) | (year - 2000)
-    # data[13] = half_our_units
+    data[10] = (int(temperature * 2.0) | (mode_value << 6)) if mode_value > 0 else 0
+    # data[10] = ((int(temperature * 2.0) << 2) | mode_value) if mode_value > 0 else 0
+    if has_time:
+        data[11] = ((month >> 1) << 5) | day
+        data[12] = ((month & 1) << 7) | (year - 2000)
+        data[13] = half_our_units
     return command(request_types.SEND_DEVICE_CMD, base64.b64encode(str(data)))
 
 def command(request_type, payload=''):
